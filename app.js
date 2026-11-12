@@ -203,7 +203,7 @@ function barChart(el, o) {
     s += `<polyline points="${pts}" fill="none" stroke="${o.line.color}" stroke-width="2" stroke-linejoin="round"/>`;
   }
   if (o.labelsOn) o.labelsOn.forEach(i => { s += `<text x="${ml + band * i + band / 2}" y="${y(tot(i)) - 6}" text-anchor="middle" font-size="11" fill="var(--ink-2)" font-family="var(--mono)">${o.fmt(tot(i))}</text>`; });
-  if (o.refLine != null) { const yy = y(o.refLine); s += `<line x1="${ml}" x2="${w - mr}" y1="${yy}" y2="${yy}" stroke="var(--ink-2)" stroke-width="1"/><text x="${w - mr}" y="${yy - 5}" text-anchor="end" font-size="11" fill="var(--ink-2)">${esc(o.refLabel || "")}</text>`; }
+  if (o.refLine != null) { const yy = y(o.refLine); s += `<line x1="${ml}" x2="${w - mr}" y1="${yy}" y2="${yy}" stroke="var(--ink-2)" stroke-width="1"/><text x="${w - mr}" y="${yy - 5}" text-anchor="end" font-size="11" fill="var(--ink-2)" stroke="var(--card)" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(o.refLabel || "")}</text>`; }
   s += `<rect class="hov" x="${ml}" y="0" width="${iw}" height="${h}" fill="transparent"/><rect class="hl-col" x="0" y="${mt}" width="${band}" height="${ih}" fill="var(--ink)" opacity="0" pointer-events="none" rx="4"/></svg>`;
   el.innerHTML = s;
   const svg = el.querySelector("svg"), hov = svg.querySelector(".hov"), col = svg.querySelector(".hl-col");
@@ -218,17 +218,20 @@ function barChart(el, o) {
 }
 
 function lineChart(el, o) {
-  const w = el.clientWidth || 600, h = o.h || 230, ml = 46, mr = 54, mt = o.markers && o.markers.length ? 30 : 10, mb = 24;
-  const n = o.labels.length, iw = w - ml - mr, ih = h - mt - mb;
+  const w = el.clientWidth || 600, h = o.h || 230, ml = 46, mr = 54, mb = 24;
+  const n = o.labels.length, iw = w - ml - mr;
+  // marcadores de evento: se dois ficam a menos de 20 px um do outro (tela estreita), o seguinte desce para uma segunda fileira
+  const mkLast = [-1e9, -1e9], mkRow = (o.markers || []).map(mk => { const xx = ml + (n === 1 ? iw / 2 : mk.i * iw / (n - 1)); const r = xx - mkLast[0] >= 20 ? 0 : xx - mkLast[1] >= 20 ? 1 : 0; mkLast[r] = xx; return r; });
+  const mt = o.markers && o.markers.length ? (mkRow.includes(1) ? 52 : 30) : 10, ih = h - mt - mb;
   const max = niceMax(Math.max(...o.values) * 1.05);
   const x = i => ml + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => mt + ih - v / max * ih;
   const col = o.color || "var(--s1)";
   let s = `<svg height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(o.aria || "")}"><defs><linearGradient id="lg-${el.id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>`;
   for (let t = 0; t <= 4; t++) { const v = max * t / 4, yy = y(v); s += `<line class="grid-l" x1="${ml}" x2="${w - mr}" y1="${yy}" y2="${yy}"/><g class="ax"><text x="${ml - 8}" y="${yy + 4}" text-anchor="end">${(o.tick || fK)(v)}</text></g>`; }
-  (o.markers || []).forEach(mk => {
-    const xx = x(mk.i);
-    s += `<line x1="${xx}" x2="${xx}" y1="${mt - 12}" y2="${y(o.values[mk.i])}" stroke="${mk.color}" stroke-width="1" opacity=".55"/>`;
-    s += `<g class="mk" data-i="${mk.i}" style="cursor:help"><circle cx="${xx}" cy="${mt - 16}" r="9" fill="var(--card)" stroke="${mk.color}" stroke-width="1.5"/><text x="${xx}" y="${mt - 12.5}" text-anchor="middle" font-size="10" font-weight="700" fill="${mk.color}">${mk.sym}</text></g>`;
+  (o.markers || []).forEach((mk, mi) => {
+    const xx = x(mk.i), cy = 14 + mkRow[mi] * 20;
+    s += `<line x1="${xx}" x2="${xx}" y1="${cy + 4}" y2="${y(o.values[mk.i])}" stroke="${mk.color}" stroke-width="1" opacity=".55"/>`;
+    s += `<g class="mk" data-i="${mk.i}" style="cursor:help"><circle cx="${xx}" cy="${cy}" r="9" fill="var(--card)" stroke="${mk.color}" stroke-width="1.5"/><text x="${xx}" y="${cy + 3.5}" text-anchor="middle" font-size="10" font-weight="700" fill="${mk.color}">${mk.sym}</text></g>`;
   });
   const pts = o.values.map((v, i) => [x(i), y(v)]);
   if (n > 1) {
@@ -875,7 +878,8 @@ const MAP = (() => {
   function fit() {
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     OUT.forEach(([lo, la]) => { const r = raw(fu(lo) - cu, fv(la) - cvv); x0 = Math.min(x0, r[0]); x1 = Math.max(x1, r[0]); y0 = Math.min(y0, r[1]); y1 = Math.max(y1, r[1]); });
-    const small = W < 760, pt = small ? 120 : 96, pb = small ? 96 : 34, pl = small ? 16 : (W > 1100 ? 120 : 40), pr = small ? 16 : (W > 1100 ? 330 : 40);
+    const small = W < 760, mh = small ? (document.querySelector(".map-head") || {}).offsetHeight || 0 : 0, lg = small ? (document.querySelector(".legend-map") || {}).offsetHeight || 0 : 0;   // no celular a malha usa o espaço entre o cabeçalho e a legenda
+    const pt = small ? Math.max(120, mh + 34) : 96, pb = small ? Math.max(96, lg + 36) : 34, pl = small ? 16 : (W > 1100 ? 120 : 40), pr = small ? 16 : (W > 1100 ? 330 : 40);
     const sh = (H - pt - pb) / (y1 - y0) * (tilt > .3 ? 1.12 : 1), sw = (W - pl - pr) / (x1 - x0);
     K = Math.min(sh, sw);
     TX = pl + (W - pl - pr) / 2 - (x0 + x1) / 2 * K;
