@@ -240,7 +240,9 @@ function lineChart(el, o) {
   // rótulo direto: máximo e último
   const imax = o.values.indexOf(Math.max(...o.values));
   [imax, n - 1].filter((v, i, a) => a.indexOf(v) === i).forEach(i => {
-    s += `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="4" fill="${col}" stroke="var(--card)" stroke-width="2"/><text x="${pts[i][0] + (i === n - 1 ? 8 : 0)}" y="${pts[i][1] - 9}" text-anchor="${i === n - 1 ? "start" : "middle"}" font-size="11.5" font-weight="600" fill="var(--ink)">${o.fmt(o.values[i])}</text>`;
+    // com marcador de evento no mesmo mês, a linha vertical do marcador passaria pelo número: o rótulo vai para a esquerda do ponto (a série sobe por ali, então o espaço está livre)
+    const last = i === n - 1, left = !last && i > 0 && (o.markers || []).some(mk => mk.i === i), side = last || left;
+    s += `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="4" fill="${col}" stroke="var(--card)" stroke-width="2"/><text x="${pts[i][0] + (last ? 8 : left ? -8 : 0)}" y="${pts[i][1] - (left ? 5 : 9)}" text-anchor="${last ? "start" : left ? "end" : "middle"}" font-size="11.5" font-weight="600" fill="var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${o.fmt(o.values[i])}</text>`;
   });
   s += `<line class="xh" x1="0" x2="0" y1="${mt}" y2="${mt + ih}" stroke="var(--ink-3)" stroke-width="1" opacity="0"/><circle class="xd" r="5" fill="${col}" stroke="var(--card)" stroke-width="2" opacity="0"/><rect class="hov" x="${ml}" y="${mt}" width="${iw}" height="${ih}" fill="transparent"/></svg>`;
   el.innerHTML = s;
